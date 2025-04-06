@@ -1,0 +1,48 @@
+disabled_rules:
+  - trailing_whitespace
+  - line_length
+  - function_body_length
+  - file_length
+  - type_body_length
+  - identifier_name
+  - cyclomatic_complexity
+
+opt_in_rules:
+  - empty_count
+  - missing_docs
+  - closure_end_indentation
+  - closure_spacing
+  - conditional_returns_on_newline
+  - explicit_init
+  - first_where
+  - overridden_super_call
+  - prohibited_super_call
+  - redundant_nil_coalescing
+  - sorted_imports
+  - unneeded_parentheses_in_closure_argument
+
+excluded:
+  - Carthage
+  - Pods
+  - Tests
+  - Sources/SwiftPulserTests
+
+line_length:
+  warning: 120
+  error: 200
+
+type_body_length:
+  warning: 300
+  error: 400
+
+file_length:
+  warning: 500
+  error: 1000
+
+function_body_length:
+  warning: 40
+  error: 100
+
+cyclomatic_complexity:
+  warning: 10
+  error: 20 
