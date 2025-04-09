@@ -45,7 +45,6 @@ public struct PulseMetricsConfig {
         self.defaultServiceCode = defaultServiceCode
         self.includeDeviceInfo = includeDeviceInfo
         
-        // Configure session timeout
         self.sessionConfiguration.timeoutIntervalForRequest = timeout
         self.sessionConfiguration.timeoutIntervalForResource = timeout * 2
     }

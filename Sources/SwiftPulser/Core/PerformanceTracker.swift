@@ -20,7 +20,7 @@ public class PerformanceTracker {
     
     public func stop(extraMetadata: [String: Any]? = nil) {
         let endTime = CFAbsoluteTimeGetCurrent()
-        let duration = (endTime - startTime) * 1000 // Convert to milliseconds
+        let duration = (endTime - startTime) * 1000
         
         var metadata = additionalMetadata ?? [:]
         

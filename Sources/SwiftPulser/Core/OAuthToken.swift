@@ -9,11 +9,12 @@ private struct OAuthTokenResponse: Codable {
         case token = "token"
     }
 }
-
 extension PulseMetricsManager {
-    private func fetchServiceToken(completion: @escaping (Result<(token: String, refreshToken: String), Error>) -> Void) {
+    func fetchServiceToken(completion: @escaping (Result<(token: String, refreshToken: String), Error>) -> Void) {
         guard let config = self.config else {
-            completion(.failure(NSError(domain: "PulseMetrics", code: -1, userInfo: [NSLocalizedDescriptionKey: "Configuration not set"])))
+            let error = NSError(domain: "PulseMetrics", code: -1, userInfo: [NSLocalizedDescriptionKey: "Configuration not set"])
+            print("[PulseMetrics][Error] Configuration not set")
+            completion(.failure(error))
             return
         }
         
@@ -22,22 +23,40 @@ extension PulseMetricsManager {
         request.setValue("Bearer \(config.authToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         
+        print("[PulseMetrics][Request] URL: \(config.oauthTokenURL)")
+        
         let task = session.dataTask(with: request) { [weak self] data, response, error in
-            guard let self = self else { return }
-            
+            guard let self = self else {
+                print("[PulseMetrics][Error] Self deallocated before task completion")
+                return
+            }
+
             if let error = error {
+                print("[PulseMetrics][Error] Network error: \(error.localizedDescription)")
                 completion(.failure(error))
                 return
             }
             
-            guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-                let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
-                completion(.failure(NSError(domain: "PulseMetrics", code: statusCode, userInfo: [NSLocalizedDescriptionKey: "Server error: \(statusCode)"])))
+            guard let httpResponse = response as? HTTPURLResponse else {
+                print("[PulseMetrics][Error] Invalid response type: \(String(describing: response))")
+                let error = NSError(domain: "PulseMetrics", code: -3, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])
+                completion(.failure(error))
+                return
+            }
+            
+            print("[PulseMetrics][Response] Status Code: \(httpResponse.statusCode)")
+            
+            guard (200...299).contains(httpResponse.statusCode) else {
+                print("[PulseMetrics][Error] Server returned status code \(httpResponse.statusCode)")
+                let error = NSError(domain: "PulseMetrics", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Server error: \(httpResponse.statusCode)"])
+                completion(.failure(error))
                 return
             }
             
             guard let data = data else {
-                completion(.failure(NSError(domain: "PulseMetrics", code: -2, userInfo: [NSLocalizedDescriptionKey: "No data received"])))
+                print("[PulseMetrics][Error] No data received")
+                let error = NSError(domain: "PulseMetrics", code: -2, userInfo: [NSLocalizedDescriptionKey: "No data received"])
+                completion(.failure(error))
                 return
             }
             
@@ -46,12 +65,14 @@ extension PulseMetricsManager {
                 let tokenResponse = try decoder.decode(OAuthTokenResponse.self, from: data)
                 self.serviceToken = tokenResponse.token
                 self.refreshToken = tokenResponse.refreshToken
+                print("[PulseMetrics][Success] Token fetched successfully")
                 completion(.success((tokenResponse.token, tokenResponse.refreshToken)))
             } catch {
+                print("[PulseMetrics][Error] JSON decoding failed: \(error)")
                 completion(.failure(error))
             }
         }
         
         task.resume()
     }
-} 
+}

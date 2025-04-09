@@ -5,13 +5,14 @@ public class PulseMetricsManager {
     // MARK: - Properties
     
     public static let shared = PulseMetricsManager()
-    private var serviceToken: String?
-    private var refreshToken: String?
-    private var config: PulseMetricsConfig?
+    public  var config: PulseMetricsConfig?
+    public var session: URLSession!
+    public var serviceToken: String?
+    public var refreshToken: String?
+
     private let queue = DispatchQueue(label: "com.pulse.metrics", qos: .utility)
     private var timer: Timer?
     private var metricsBuffer: [PulseMetric] = []
-    private var session: URLSession!
     private var retryCounters: [UUID: Int] = [:]
     private var storageURL: URL?
     public private(set) var logLevel: PulseLogLevel = .error
@@ -30,9 +31,6 @@ public class PulseMetricsManager {
         let processInfo = ProcessInfo.processInfo
         info["system_version"] = processInfo.operatingSystemVersionString
 #endif
-        
-        info["device_id"] = UUID().uuidString // Use a proper device identifier in production
-        
         return info
     }()
     
@@ -104,7 +102,7 @@ public class PulseMetricsManager {
         }
         
         if config.includeDeviceInfo {
-            combinedMetadata["device"] = deviceInfo
+            combinedMetadata.merge(self.deviceInfo) { (_, new) in new }
         }
         
         let metric = PulseMetric(
@@ -166,74 +164,100 @@ public class PulseMetricsManager {
         sendMetricsBatch(batch, batchId: batchId, retryCount: 0)
     }
     
-    private func sendMetricsBatch(_ batch: [PulseMetric], batchId: UUID, retryCount: Int) {
-        guard let config = self.config else { return }
-        
-        // Fetch token if not available
-        guard let serviceToken = serviceToken else {
-            fetchServiceToken { [weak self] result in
-                switch result {
-                    case .success:
-                        self?.sendMetricsBatch(batch, batchId: batchId, retryCount: retryCount)
-                    case .failure(let error):
-                        self?.log(.error, message: "Failed to fetch service token: \(error.localizedDescription)")
-                        self?.handleSendFailure(batch: batch, batchId: batchId, retryCount: retryCount)
-                }
-            }
-            return
-        }
-        
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        
-        do {
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            let jsonData = try encoder.encode(batch)
-            
-            var request = URLRequest(url: config.baseURL.appendingPathComponent("pulse/api/v1/customer/track"))
-            request.httpMethod = "POST"
-            request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
-            request.setValue("Bearer \(serviceToken)", forHTTPHeaderField: "Authorization")
-            request.httpBody = jsonData
-            
-            let task = session.dataTask(with: request) { [weak self] data, response, error in
-                guard let self = self else { return }
-                
-                if let error = error {
-                    self.log(.error, message: "Failed to send metrics batch: \(error.localizedDescription)")
-                    self.handleSendFailure(batch: batch, batchId: batchId, retryCount: retryCount)
-                    return
-                }
-                
-                guard let httpResponse = response as? HTTPURLResponse else {
-                    self.log(.error, message: "Invalid response")
-                    self.handleSendFailure(batch: batch, batchId: batchId, retryCount: retryCount)
-                    return
-                }
-                
-                if (200...299).contains(httpResponse.statusCode) {
-                    self.log(.info, message: "Successfully sent batch of \(batch.count) metrics")
-                } else {
-                    if httpResponse.statusCode == 401 {
-                        self.serviceToken = nil // Invalidate expired token
-                        self.log(.warning, message: "Token expired, will retry with new token")
-                    }
-                    self.log(.error, message: "Server returned error status: \(httpResponse.statusCode)")
-                    self.handleSendFailure(batch: batch, batchId: batchId, retryCount: retryCount)
-                }
-            }
-            
-            task.resume()
-        } catch {
-            log(.error, message: "Failed to encode metrics batch: \(error.localizedDescription)")
-            handleSendFailure(batch: batch, batchId: batchId, retryCount: retryCount)
-        }
+    
+ private func sendMetricsBatch(_ batch: [PulseMetric], batchId: UUID, retryCount: Int) {
+    guard let config = self.config else { 
+        log(.error, message: "[Batch \(batchId)] Cannot send metrics - configuration is nil")
+        return 
     }
     
+    // Add debug info about the batch
+    log(.debug, message: "[Batch \(batchId)] Preparing to send \(batch.count) metrics (retry: \(retryCount))")
+    
+    // Fetch token if not available
+    guard let serviceToken = serviceToken else {
+        log(.info, message: "[Batch \(batchId)] No service token available, fetching new token")
+        fetchServiceToken { [weak self] result in
+            switch result {
+            case .success(let token):
+                    self?.log(.debug, message: "[Batch \(batchId)] Successfully fetched new token")
+                self?.sendMetricsBatch(batch, batchId: batchId, retryCount: retryCount)
+            case .failure(let error):
+                self?.log(.error, message: "[Batch \(batchId)] Failed to fetch service token: \(error.localizedDescription)")
+                self?.handleSendFailure(batch: batch, batchId: batchId, retryCount: retryCount)
+            }
+        }
+        return
+    }
+    
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    
+    do {
+        let jsonData = try encoder.encode(batch)
+        let endpoint = "pulse/api/v1/customer/track"
+        let url = config.baseURL.appendingPathComponent(endpoint)
+        
+        log(.debug, message: "[Batch \(batchId)] Sending request to \(url.absoluteString)")
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(serviceToken)", forHTTPHeaderField: "Authorization")
+        request.httpBody = jsonData
+        
+        let payloadSize = jsonData.count
+        log(.debug, message: "[Batch \(batchId)] Request payload size: \(payloadSize) bytes")
+        
+        let task = session.dataTask(with: request) { [weak self] data, response, error in
+            guard let self = self else { return }
+            
+            if let error = error {
+                self.log(.error, message: "[Batch \(batchId)] Network error: \(error.localizedDescription)")
+                self.handleSendFailure(batch: batch, batchId: batchId, retryCount: retryCount)
+                return
+            }
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                self.log(.error, message: "[Batch \(batchId)] Invalid response type")
+                self.handleSendFailure(batch: batch, batchId: batchId, retryCount: retryCount)
+                return
+            }
+            
+
+            if let responseHeaders = httpResponse.allHeaderFields as? [String: String] {
+                let headersDebug = responseHeaders.map { "\($0.key): \($0.value)" }.joined(separator: ", ")
+                self.log(.debug, message: "[Batch \(batchId)] Response headers: \(headersDebug)")
+            }
+            
+            if let data = data, let responseString = String(data: data, encoding: .utf8) {
+                self.log(.debug, message: "[Batch \(batchId)] Response body: \(responseString)")
+            }
+            
+            if (200...299).contains(httpResponse.statusCode) {
+                self.log(.info, message: "[Batch \(batchId)] Successfully sent \(batch.count) metrics (HTTP \(httpResponse.statusCode))")
+            } else {
+                if httpResponse.statusCode == 401 {
+                    self.serviceToken = nil // Invalidate expired token
+                    self.log(.warning, message: "[Batch \(batchId)] Token expired (HTTP 401), will retry with new token")
+                } else {
+                    self.log(.error, message: "[Batch \(batchId)] Server error: HTTP \(httpResponse.statusCode)")
+                }
+                self.handleSendFailure(batch: batch, batchId: batchId, retryCount: retryCount)
+            }
+        }
+        
+        task.resume()
+        log(.debug, message: "[Batch \(batchId)] Request started")
+        
+    } catch {
+        log(.error, message: "[Batch \(batchId)] JSON encoding error: \(error.localizedDescription)")
+        handleSendFailure(batch: batch, batchId: batchId, retryCount: retryCount)
+    }
+}
+
     private func handleSendFailure(batch: [PulseMetric], batchId: UUID, retryCount: Int) {
         guard let config = config else {
-            // If config is nil, just add back to the buffer
             queue.async { [weak self] in
                 self?.metricsBuffer.insert(contentsOf: batch, at: 0)
             }
@@ -242,7 +266,7 @@ public class PulseMetricsManager {
         
         if retryCount < config.maxRetries {
             let nextRetryCount = retryCount + 1
-            let delay = config.baseRetryDelay * pow(2.0, Double(retryCount)) // Exponential backoff
+            let delay = config.baseRetryDelay * pow(2.0, Double(retryCount)) 
             
             log(.info, message: "Scheduling retry \(nextRetryCount)/\(config.maxRetries) for batch in \(delay) seconds")
             
@@ -255,7 +279,6 @@ public class PulseMetricsManager {
             if config.persistMetrics {
                 persistMetricsBatch(batch)
             } else {
-                // If persistence is disabled, add back to buffer
                 queue.async { [weak self] in
                     self?.metricsBuffer.insert(contentsOf: batch, at: 0)
                 }
@@ -313,7 +336,6 @@ public class PulseMetricsManager {
             try jsonData.write(to: batchURL)
             log(.debug, message: "Persisted batch to: \(batchURL.lastPathComponent)")
             
-            // Check storage size limit
             enforceStorageSizeLimit()
         } catch {
             log(.error, message: "Failed to persist metrics: \(error.localizedDescription)")
@@ -339,10 +361,8 @@ public class PulseMetricsManager {
                     
                     let batch = try decoder.decode([PulseMetric].self, from: data)
                     
-                    // Add to buffer for sending
                     metricsBuffer.append(contentsOf: batch)
                     
-                    // Remove the file
                     try config.fileManager.removeItem(at: fileURL)
                     
                     log(.debug, message: "Loaded and removed persisted batch: \(fileURL.lastPathComponent)")
@@ -366,7 +386,6 @@ public class PulseMetricsManager {
                 options: [.skipsHiddenFiles]
             ).filter { $0.pathExtension == "json" }
             
-            // Get files with sizes
             var filesWithSize: [(url: URL, size: Int64, date: Date)] = []
             
             for fileURL in fileURLs {
@@ -381,14 +400,11 @@ public class PulseMetricsManager {
                 }
             }
             
-            // Calculate total size
             let totalSize = filesWithSize.reduce(0) { $0 + $1.size }
             
-            // If over limit, delete oldest files
             if totalSize > Int64(config.maxStorageSize) {
                 log(.warning, message: "Storage over limit (\(totalSize) > \(config.maxStorageSize)), cleaning up")
                 
-                // Sort by date (oldest first)
                 let sortedFiles = filesWithSize.sorted { $0.date < $1.date }
                 
                 var currentSize = totalSize
@@ -411,7 +427,7 @@ public class PulseMetricsManager {
         }
     }
     
-    // MARK: - Deinit
+    deinit
     
     deinit {
         timer?.invalidate()
