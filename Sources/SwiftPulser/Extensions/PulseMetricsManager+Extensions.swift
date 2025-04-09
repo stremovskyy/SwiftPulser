@@ -5,7 +5,7 @@ public extension PulseMetricsManager {
                          screenClass: String? = nil,
                          userId: String? = nil,
                          additionalMetadata: [String: Any]? = nil) {
-        var metadata: [String: Any] = ["screen_name": screenName]
+        var metadata: [String: Any] = [:]
         
         if let screenClass = screenClass {
             metadata["screen_class"] = screenClass
@@ -17,7 +17,7 @@ public extension PulseMetricsManager {
             }
         }
         
-        track(eventType: "screen_view", userId: userId, metadata: metadata)
+        track(eventType: "screen_view",eventSubType: screenName, userId: userId, metadata: metadata)
     }
     
     func trackUserAction(action: String,
@@ -26,7 +26,7 @@ public extension PulseMetricsManager {
                          value: Any? = nil,
                          userId: String? = nil,
                          additionalMetadata: [String: Any]? = nil) {
-        var metadata: [String: Any] = ["action": action]
+        var metadata: [String: Any] = [:]
         
         if let category = category {
             metadata["category"] = category
@@ -46,7 +46,7 @@ public extension PulseMetricsManager {
             }
         }
         
-        track(eventType: "user_action", userId: userId, metadata: metadata)
+        track(eventType: "user_action", eventSubType: action, userId: userId, metadata: metadata)
     }
     
     func trackError(_ error: Error,

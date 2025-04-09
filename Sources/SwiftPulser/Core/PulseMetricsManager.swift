@@ -9,16 +9,18 @@ public class PulseMetricsManager {
     public var session: URLSession!
     public var serviceToken: String?
     public var refreshToken: String?
+    public private(set) var logLevel: PulseLogLevel = .error
+    public private(set) var isEnabled = true
+    public var defaultUserId: String?
+    public var defaultMetadata: [String: Any] = [:]
 
     private let queue = DispatchQueue(label: "com.pulse.metrics", qos: .utility)
     private var timer: Timer?
     private var metricsBuffer: [PulseMetric] = []
     private var retryCounters: [UUID: Int] = [:]
     private var storageURL: URL?
-    public private(set) var logLevel: PulseLogLevel = .error
-    public private(set) var isEnabled = true
-    public var defaultUserId: String?
-    public var defaultMetadata: [String: Any] = [:]
+    private var tokenStorageURL: URL?
+    
     private lazy var deviceInfo: [String: Any] = {
         var info: [String: Any] = [:]
         
@@ -311,14 +313,23 @@ public class PulseMetricsManager {
         
         let documentsURL = config.fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
         let metricsStorageURL = documentsURL.appendingPathComponent("PulseMetrics", isDirectory: true)
+        let tokenStorageURL = documentsURL.appendingPathComponent("PulseMetrics/Tokens", isDirectory: true)
         
         do {
             if !config.fileManager.fileExists(atPath: metricsStorageURL.path) {
                 try config.fileManager.createDirectory(at: metricsStorageURL, withIntermediateDirectories: true)
             }
             
+            if !config.fileManager.fileExists(atPath: tokenStorageURL.path) {
+                try config.fileManager.createDirectory(at: tokenStorageURL, withIntermediateDirectories: true)
+            }
+            
             self.storageURL = metricsStorageURL
+            self.tokenStorageURL = tokenStorageURL
             log(.debug, message: "Storage initialized at: \(metricsStorageURL.path)")
+            log(.debug, message: "Token storage initialized at: \(tokenStorageURL.path)")
+            
+            loadPersistedTokens()
         } catch {
             log(.error, message: "Failed to setup storage: \(error.localizedDescription)")
         }
@@ -376,6 +387,49 @@ public class PulseMetricsManager {
         }
     }
     
+    func persistTokens() {
+        guard let tokenStorageURL = tokenStorageURL,
+              let config = config,
+              let serviceToken = serviceToken,
+              let refreshToken = refreshToken else { return }
+        
+        let tokenData: [String: String] = [
+            "service_token": serviceToken,
+            "refresh_token": refreshToken
+        ]
+        
+        let tokenFileURL = tokenStorageURL.appendingPathComponent("tokens.json")
+        
+        do {
+            let jsonData = try JSONSerialization.data(withJSONObject: tokenData, options: .prettyPrinted)
+            try jsonData.write(to: tokenFileURL)
+            log(.debug, message: "Tokens persisted successfully")
+        } catch {
+            log(.error, message: "Failed to persist tokens: \(error.localizedDescription)")
+        }
+    }
+    
+    private func loadPersistedTokens() {
+        guard let tokenStorageURL = tokenStorageURL,
+              let config = config else { return }
+        
+        let tokenFileURL = tokenStorageURL.appendingPathComponent("tokens.json")
+        
+        do {
+            let jsonData = try Data(contentsOf: tokenFileURL)
+            let tokenData = try JSONSerialization.jsonObject(with: jsonData) as? [String: String]
+            
+            if let serviceToken = tokenData?["service_token"],
+               let refreshToken = tokenData?["refresh_token"] {
+                self.serviceToken = serviceToken
+                self.refreshToken = refreshToken
+                log(.info, message: "Loaded persisted tokens successfully")
+            }
+        } catch {
+            log(.debug, message: "No persisted tokens found or error loading them: \(error.localizedDescription)")
+        }
+    }
+    
     private func enforceStorageSizeLimit() {
         guard let storageURL = storageURL, let config = config else { return }
         
@@ -426,8 +480,6 @@ public class PulseMetricsManager {
             log(.error, message: "Failed to check storage size: \(error.localizedDescription)")
         }
     }
-    
-    deinit
     
     deinit {
         timer?.invalidate()

@@ -66,6 +66,7 @@ extension PulseMetricsManager {
                 self.serviceToken = tokenResponse.token
                 self.refreshToken = tokenResponse.refreshToken
                 print("[PulseMetrics][Success] Token fetched successfully")
+                self.persistTokens()
                 completion(.success((tokenResponse.token, tokenResponse.refreshToken)))
             } catch {
                 print("[PulseMetrics][Error] JSON decoding failed: \(error)")
