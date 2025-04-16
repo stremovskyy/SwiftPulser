@@ -2,8 +2,6 @@ import Foundation
 
 // MARK: - Time Range Tracking
 public extension PulseMetricsManager {
-    private var activeTimeRanges: [String: (startTime: Date, metadata: [String: Any])] = [:]
-
     func startTimeRange(rangeId: String,
                        eventType: String,
                        eventSubType: String? = nil,
@@ -50,9 +48,7 @@ public extension PulseMetricsManager {
 }
 
 // MARK: - Session Tracking
-public extension PulseMetricsManager {
-    private var activeSessions: [String: (startTime: Date, metadata: [String: Any])] = [:]
-    
+public extension PulseMetricsManager {    
     func startSession(sessionId: String, metadata: [String: Any]? = nil) {
         queue.async { [weak self] in
             guard let self = self else { return }

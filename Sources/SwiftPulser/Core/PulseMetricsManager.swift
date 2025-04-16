@@ -13,8 +13,11 @@ public class PulseMetricsManager {
     public private(set) var isEnabled = true
     public var defaultUserId: String?
     public var defaultMetadata: [String: Any] = [:]
-
-    private let queue = DispatchQueue(label: "com.pulse.metrics", qos: .utility)
+    
+    let queue = DispatchQueue(label: "com.pulse.metrics", qos: .utility)
+    var activeSessions: [String: (startTime: Date, metadata: [String: Any])] = [:]
+    var activeTimeRanges: [String: (startTime: Date, metadata: [String: Any])] = [:]
+    
     private var timer: Timer?
     private var metricsBuffer: [PulseMetric] = []
     private var retryCounters: [UUID: Int] = [:]
@@ -288,7 +291,7 @@ public class PulseMetricsManager {
         }
     }
     
-    private func log(_ level: PulseLogLevel, message: String, file: String = #file, function: String = #function, line: Int = #line) {
+    func log(_ level: PulseLogLevel, message: String, file: String = #file, function: String = #function, line: Int = #line) {
         guard level <= logLevel else { return }
         
         let fileName = URL(fileURLWithPath: file).lastPathComponent
