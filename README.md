@@ -17,6 +17,9 @@ SwiftPulser is a powerful and flexible metrics tracking library for Swift applic
 - 📝 Comprehensive logging system
 - 🔄 Automatic token refresh
 - 🛠️ Configurable batch size and intervals
+- ⏱️ Time range tracking with automatic duration calculation
+- 👥 Session tracking with start/end events
+- 🎯 Enhanced convenience methods for common tracking scenarios
 
 ## Requirements
 
@@ -58,7 +61,91 @@ let config = PulseMetricsConfig(
 PulseMetricsManager.shared.configure(with: config)
 ```
 
-### Tracking Events
+### Time Range Tracking
+
+Track time ranges with automatic duration calculation:
+
+```swift
+// Start tracking a time range
+PulseMetricsManager.shared.startTimeRange(
+    rangeId: "feature_usage",
+    eventType: "feature_interaction",
+    eventSubType: "search",
+    metadata: ["feature_name": "search"]
+)
+
+// ... some time later ...
+
+// End the time range tracking
+PulseMetricsManager.shared.endTimeRange(
+    rangeId: "feature_usage",
+    eventType: "feature_interaction",
+    eventSubType: "search",
+    additionalMetadata: ["result_count": 42]
+)
+```
+
+### Session Tracking
+
+Track user sessions with automatic duration calculation:
+
+```swift
+// Start a new session
+PulseMetricsManager.shared.startSession(
+    sessionId: "user123_session",
+    metadata: ["app_version": "1.0.0", "platform": "iOS"]
+)
+
+// ... later ...
+
+// End the session
+PulseMetricsManager.shared.endSession(
+    sessionId: "user123_session",
+    additionalMetadata: ["exit_reason": "user_logout"]
+)
+```
+
+### Enhanced Convenience Methods
+
+#### User Action Tracking
+
+```swift
+PulseMetricsManager.shared.trackUserAction(
+    action: "button_click",
+    screen: "home",
+    userId: "user123",
+    additionalMetadata: ["button_id": "search_button"]
+)
+```
+
+#### Error Tracking
+
+```swift
+do {
+    // Your code that might throw
+} catch {
+    PulseMetricsManager.shared.trackError(
+        error,
+        context: "api_request",
+        userId: "user123",
+        additionalMetadata: ["endpoint": "/users"]
+    )
+}
+```
+
+#### Performance Metric Tracking
+
+```swift
+PulseMetricsManager.shared.trackPerformance(
+    metricName: "api_response_time",
+    value: 0.5,
+    unit: "seconds",
+    userId: "user123",
+    additionalMetadata: ["endpoint": "/users"]
+)
+```
+
+### Basic Event Tracking
 
 ```swift
 // Track a screen view
