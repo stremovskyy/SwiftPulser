@@ -30,7 +30,8 @@ public extension PulseMetricsManager {
                 return
             }
             
-            let duration = Date().timeIntervalSince(startTime)
+            let duration = Int(Date().timeIntervalSince(startTime))
+            
             var combinedMetadata = metadata
             if let additionalMetadata = additionalMetadata {
                 combinedMetadata.merge(additionalMetadata) { (_, new) in new }
@@ -49,7 +50,7 @@ public extension PulseMetricsManager {
 
 // MARK: - Session Tracking
 public extension PulseMetricsManager {    
-    func startSession(sessionId: String, metadata: [String: Any]? = nil) {
+    func startSession(sessionId: String,sessionName: String?,  metadata: [String: Any]? = nil) {
         queue.async { [weak self] in
             guard let self = self else { return }
             
@@ -60,13 +61,13 @@ public extension PulseMetricsManager {
             
             self.activeSessions[sessionId] = (Date(), combinedMetadata)
             self.track(eventType: "session_start",
-                      eventSubType: nil,
+                      eventSubType: sessionName,
                       metadata: combinedMetadata)
             self.log(.debug, message: "Started session \(sessionId)")
         }
     }
 
-    func endSession(sessionId: String, additionalMetadata: [String: Any]? = nil) {
+    func endSession(sessionId: String,sessionName: String?, additionalMetadata: [String: Any]? = nil) {
         queue.async { [weak self] in
             guard let self = self,
                   let (startTime, metadata) = self.activeSessions[sessionId] else {
@@ -82,7 +83,7 @@ public extension PulseMetricsManager {
             combinedMetadata["duration_seconds"] = duration
             
             self.track(eventType: "session_end",
-                      eventSubType: nil,
+                      eventSubType: sessionName,
                       metadata: combinedMetadata)
             
             self.activeSessions.removeValue(forKey: sessionId)
