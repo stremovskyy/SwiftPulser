@@ -5,6 +5,14 @@ All notable changes to SwiftPulser will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.3] - 2025-04-17
+
+### Added
+- Time range round rules configuration
+- Support for custom time range labels (e.g., "<5s", "5-10s", "10-30s", "30+s")
+- Option to use raw seconds value when no rules are provided
+- Duration labels in time range and session tracking metadata
+
 ## [1.1.1] - 2025-04-16
 
 ### Changed

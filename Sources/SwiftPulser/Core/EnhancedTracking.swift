@@ -30,27 +30,29 @@ public extension PulseMetricsManager {
                 return
             }
             
-            let duration = Int(Date().timeIntervalSince(startTime))
+            let duration = Date().timeIntervalSince(startTime)
+            let durationLabel = self.config?.timeRangeRules.getLabel(for: duration) ?? "\(Int(duration))s"
             
             var combinedMetadata = metadata
             if let additionalMetadata = additionalMetadata {
                 combinedMetadata.merge(additionalMetadata) { (_, new) in new }
             }
-            combinedMetadata["duration_seconds"] = duration
+            // combinedMetadata["duration_seconds"] = duration
+            combinedMetadata["duration_label"] = durationLabel
             
             self.track(eventType: eventType,
                       eventSubType: eventSubType,
                       metadata: combinedMetadata)
             
             self.activeTimeRanges.removeValue(forKey: rangeId)
-            self.log(.debug, message: "Ended time range tracking for \(rangeId) with duration \(duration) seconds")
+            self.log(.debug, message: "Ended time range tracking for \(rangeId) with duration \(durationLabel)")
         }
     }
 }
 
 // MARK: - Session Tracking
 public extension PulseMetricsManager {    
-    func startSession(sessionId: String,sessionName: String?,  metadata: [String: Any]? = nil) {
+    func startSession(sessionId: String, sessionName: String?, metadata: [String: Any]? = nil) {
         queue.async { [weak self] in
             guard let self = self else { return }
             
@@ -67,7 +69,7 @@ public extension PulseMetricsManager {
         }
     }
 
-    func endSession(sessionId: String,sessionName: String?, additionalMetadata: [String: Any]? = nil) {
+    func endSession(sessionId: String, sessionName: String?, additionalMetadata: [String: Any]? = nil) {
         queue.async { [weak self] in
             guard let self = self,
                   let (startTime, metadata) = self.activeSessions[sessionId] else {
@@ -76,18 +78,21 @@ public extension PulseMetricsManager {
             }
             
             let duration = Date().timeIntervalSince(startTime)
+            let durationLabel = self.config?.timeRangeRules.getLabel(for: duration) ?? "\(Int(duration))s"
+            
             var combinedMetadata = metadata
             if let additionalMetadata = additionalMetadata {
                 combinedMetadata.merge(additionalMetadata) { (_, new) in new }
             }
-            combinedMetadata["duration_seconds"] = duration
+            // combinedMetadata["duration_seconds"] = duration
+            combinedMetadata["duration_label"] = durationLabel
             
             self.track(eventType: "session_end",
                       eventSubType: sessionName,
                       metadata: combinedMetadata)
             
             self.activeSessions.removeValue(forKey: sessionId)
-            self.log(.debug, message: "Ended session \(sessionId) with duration \(duration) seconds")
+            self.log(.debug, message: "Ended session \(sessionId) with duration \(durationLabel)")
         }
     }
 }

@@ -15,6 +15,7 @@ public struct PulseMetricsConfig {
     public let sessionConfiguration: URLSessionConfiguration
     public let defaultServiceCode: String?
     public let includeDeviceInfo: Bool
+    public let timeRangeRules: TimeRangeRules
     
     public init(baseURL: URL,
                 oauthTokenURL: URL,
@@ -29,7 +30,8 @@ public struct PulseMetricsConfig {
                 fileManager: FileManager = .default,
                 sessionConfiguration: URLSessionConfiguration = .default,
                 defaultServiceCode: String? = nil,
-                includeDeviceInfo: Bool = true) {
+                includeDeviceInfo: Bool = true,
+                timeRangeRules: TimeRangeRules = TimeRangeRules()) {
         self.baseURL = baseURL
         self.oauthTokenURL = oauthTokenURL
         self.authToken = authToken
@@ -44,6 +46,7 @@ public struct PulseMetricsConfig {
         self.sessionConfiguration = sessionConfiguration
         self.defaultServiceCode = defaultServiceCode
         self.includeDeviceInfo = includeDeviceInfo
+        self.timeRangeRules = timeRangeRules
         
         self.sessionConfiguration.timeoutIntervalForRequest = timeout
         self.sessionConfiguration.timeoutIntervalForResource = timeout * 2
