@@ -63,4 +63,35 @@ final class SwiftPulserTests: XCTestCase {
         manager.setEnabled(true)
         XCTAssertTrue(manager.isEnabled)
     }
-} 
+    
+    func testUpdateAuthToken() {
+        let config = PulseMetricsConfig(
+            baseURL: URL(string: "https://test.com")!,
+            oauthTokenURL: URL(string: "https://test.com/token")!,
+            authToken: "initial-token"
+        )
+        
+        manager.configure(with: config)
+        
+        let configExpectation = XCTestExpectation(description: "Initial configuration")
+        manager.queue.async {
+            configExpectation.fulfill()
+        }
+        wait(for: [configExpectation], timeout: 1.0)
+        
+        XCTAssertEqual(manager.config?.authToken, "initial-token")
+        
+        manager.updateAuthToken("updated-token")
+        
+        // its async operation, so we need to wait for it to complete
+        let updateExpectation = XCTestExpectation(description: "Auth token update")
+        manager.queue.async {
+            updateExpectation.fulfill()
+        }
+        wait(for: [updateExpectation], timeout: 1.0)
+        
+        XCTAssertEqual(manager.config?.authToken, "updated-token")
+        XCTAssertNil(manager.serviceToken, "Service token should be cleared after auth token update")
+        XCTAssertNil(manager.refreshToken, "Refresh token should be cleared after auth token update")
+    }
+}

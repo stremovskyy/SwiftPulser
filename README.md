@@ -223,6 +223,20 @@ PulseMetricsManager.shared.setEnabled(false) // Disable
 PulseMetricsManager.shared.setEnabled(true)  // Enable
 ```
 
+### Update Auth Token
+
+You can update the authentication token after initial configuration:
+
+```swift
+// Update the auth token (e.g., after user login or token refresh)
+PulseMetricsManager.shared.updateAuthToken("new-auth-token")
+```
+
+This method will:
+- Update the configuration with the new auth token
+- Clear existing service and refresh tokens to force a fresh authentication
+- Ensure all subsequent requests use the new token
+
 ### Manual Flush
 
 ```swift
@@ -237,4 +251,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-SwiftPulser is available under the MIT license. See the LICENSE file for more info. 
+SwiftPulser is available under the MIT license. See the LICENSE file for more info.

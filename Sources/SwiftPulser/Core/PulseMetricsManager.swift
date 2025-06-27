@@ -1,5 +1,7 @@
 import Foundation
+#if os(iOS) || os(tvOS) || os(watchOS)
 import UIKit
+#endif
 
 public class PulseMetricsManager {
     // MARK: - Properties
@@ -68,10 +70,42 @@ public class PulseMetricsManager {
     }
     
     public func setEnabled(_ enabled: Bool) {
+        isEnabled = enabled
+        log(.info, message: "Metrics collection \(enabled ? "enabled" : "disabled")")
+    }
+    
+    public func updateAuthToken(_ newAuthToken: String) {
         queue.async { [weak self] in
-            guard let self = self else { return }
-            self.isEnabled = enabled
-            self.log(.info, message: "Metrics collection \(enabled ? "enabled" : "disabled")")
+            guard let self = self, let currentConfig = self.config else {
+                self?.log(.error, message: "Cannot update auth token: Manager not configured")
+                return
+            }
+            
+            // Unfortunately, we cannot modify the existing config directly, so we create a new config with the updated auth token
+            let updatedConfig = PulseMetricsConfig(
+                baseURL: currentConfig.baseURL,
+                oauthTokenURL: currentConfig.oauthTokenURL,
+                authToken: newAuthToken,
+                batchSize: currentConfig.batchSize,
+                batchInterval: currentConfig.batchInterval,
+                timeout: currentConfig.timeout,
+                maxRetries: currentConfig.maxRetries,
+                baseRetryDelay: currentConfig.baseRetryDelay,
+                persistMetrics: currentConfig.persistMetrics,
+                maxStorageSize: currentConfig.maxStorageSize,
+                fileManager: currentConfig.fileManager,
+                sessionConfiguration: currentConfig.sessionConfiguration,
+                defaultServiceCode: currentConfig.defaultServiceCode,
+                includeDeviceInfo: currentConfig.includeDeviceInfo,
+                timeRangeRules: currentConfig.timeRangeRules
+            )
+            
+            self.config = updatedConfig
+            
+            self.serviceToken = nil
+            self.refreshToken = nil
+            
+            self.log(.info, message: "Auth token updated successfully")
         }
     }
     
@@ -488,4 +522,4 @@ public class PulseMetricsManager {
         timer?.invalidate()
         flush()
     }
-} 
+}
